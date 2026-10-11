@@ -10,7 +10,9 @@ Everything (DNS redirector + game server) now runs from a **single** process.
 - **Remote / specific IP:** `pogo-server.exe 203.0.113.7` (the IP the phone should reach).
 
 ## Option B — the script
-- Local: `py run.py`  (or double-click `start.bat`)
+- Windows: double-click `start.bat` (asks for Administrator, installs the dependency,
+  opens the firewall for the phone, starts the server)
+- Local: `py run.py`
 - Remote: `py run.py <public-ip>`
 
 The launcher lives in `run.py`; the server itself is the `windstock/` package.

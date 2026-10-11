@@ -23,6 +23,7 @@ Build a standalone .exe (no Python needed on the target):
          --add-data "certs;certs" --collect-all s2sphere run.py
 """
 import os
+import socket
 import sys
 import threading
 import time
@@ -67,6 +68,51 @@ def _parse_launcher_args(argv):
     return gnirehtet, ip
 
 
+def _check_ports():
+    """Try the three listening ports before anything starts, so a taken or
+    privileged port is named in one line instead of a traceback from a
+    background thread a second later. Exits when one cannot be bound."""
+    checks = [("udp", int(os.environ["DNS_PORT"]), "the DNS redirector"),
+              ("tcp", int(os.environ["PORT"]), "the game server"),
+              ("tcp", int(os.environ.get("SSO_BRIDGE_PORT", "80")),
+               "the phone setup page")]
+    problems = []
+    for proto, port, what in checks:
+        s = socket.socket(socket.AF_INET,
+                          socket.SOCK_DGRAM if proto == "udp" else socket.SOCK_STREAM)
+        try:
+            if proto == "tcp" and os.name != "nt":
+                # What the real listener does (socketserver's allow_reuse_address):
+                # a port left in TIME_WAIT by the last run must not count as
+                # taken. On Windows that flag would hide a REAL listener, so
+                # the probe stays strict there.
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((os.environ.get("BIND", "0.0.0.0"), port))
+        except PermissionError:
+            problems.append((proto, port, what, "needs Administrator / root"))
+        except OSError:
+            problems.append((proto, port, what, "is already in use by another program"))
+        finally:
+            s.close()
+    if not problems:
+        return
+    for proto, port, what, why in problems:
+        print(paint("!! ", BOLD, BRED)
+              + paint(f"port {proto} {port} ({what}) {why}", BRED))
+    if any("Administrator" in p[3] for p in problems):
+        print(paint("   Windows: right-click start.bat -> Run as administrator."
+                    "   macOS / Linux: sudo python3 run.py", DIM))
+    if any("in use" in p[3] for p in problems):
+        print(paint("   Find out what has it --", DIM))
+        print(paint("     Windows:       netstat -ano | findstr :PORT   "
+                    "(the last column is the PID; Task Manager -> Details)", DIM))
+        print(paint("     macOS / Linux: sudo lsof -i :PORT", DIM))
+        print(paint("   Usual suspects: VMware Workstation on 443, IIS / Skype / "
+                    "'World Wide Web Publishing' on 80, another copy of this "
+                    "server, or Docker / WSL / a DNS tool on 53.", DIM))
+    sys.exit(1)
+
+
 def _print_launcher_help():
     print()
     print("  " + paint("Windstock launcher", BOLD, BBLUE))
@@ -106,6 +152,8 @@ def main(ui_stream=None):
     # actually request + render the wild Pokemon (asset bundles now shipped in
     # assets/). Set SERVE_GAME_MASTER=0 to fall back to the bare template set.
     os.environ.setdefault("SERVE_GAME_MASTER", "1")
+
+    _check_ports()
 
     from windstock.net import server
     from windstock.net import dns_redirect

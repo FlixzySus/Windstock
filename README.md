@@ -165,6 +165,9 @@ change that. `--check`, `--list` and `--dry-run` are available too.
 py __main__.py
 ```
 
+On **Windows**, double-click `src/server/start.bat` instead: it asks for Administrator rights,
+installs the dependency, adds the firewall rules for the phone and starts the server.
+
 `__main__.py` detects this PC's LAN IP and starts the DNS redirector and the game server. The first
 start generates the TLS certificates too (`py windstock/tools/gen_certs.py` does the same by hand;
 it works with or without OpenSSL installed). Pass an IP to use a specific one, such as a Tailscale

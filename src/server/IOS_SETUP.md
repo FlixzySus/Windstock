@@ -70,20 +70,23 @@ Start it. It needs ports **53** (DNS), **443** (game) and **80**, so it must run
 as admin/root. The first start also generates the server's certificate (a
 minute at most) and prints the address to use on the phone:
 
+**Windows:** double-click **`src/server/start.bat`**. It asks for Administrator
+rights, installs the dependency, opens the Windows Firewall for the phone (UDP
+53, TCP 443, TCP 80; the rules are kept) and starts the server. To pin the
+address, run it from a prompt as `start.bat 192.168.1.50`. No OpenSSL is needed
+on Windows: the certificate is generated in pure Python.
+
+**macOS / Linux:**
+
 ```bash
-sudo python3 run.py 192.168.1.50      # macOS / Linux  (your IP here)
-py run.py 192.168.1.50                # Windows, in an Administrator prompt
-```
-
-On Windows, also let the phone through the firewall once (Administrator prompt):
-
-```
-netsh advfirewall firewall add rule name="pogo-dns"   dir=in action=allow protocol=UDP localport=53
-netsh advfirewall firewall add rule name="pogo-https" dir=in action=allow protocol=TCP localport=443
-netsh advfirewall firewall add rule name="pogo-http"  dir=in action=allow protocol=TCP localport=80
+sudo python3 run.py 192.168.1.50      # your IP here
 ```
 
 On macOS, click **Allow** when it asks whether Python may accept incoming connections.
+
+If the launcher stops with *port ... is already in use*, another program holds
+that port. On Windows the usual ones are VMware on 443 and IIS or Skype on 80;
+`netstat -ano | findstr :443` shows the PID, and Task Manager → Details names it.
 
 ## 3. Trust Windstock's certificate on the iPhone
 
