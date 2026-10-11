@@ -155,6 +155,18 @@ def main():
                 log(f"[tls] handshake FAILED: {e!r}")
                 raise OSError(str(e)) from e
 
+        def handle_error(self, request, client_address):
+            # A phone dropping a kept-alive connection (Safari opens spares
+            # and closes them) is not an error. socketserver's default prints
+            # a 20-line traceback for it, which reads as a crash; log one line
+            # and keep the traceback for anything else.
+            e = sys.exc_info()[1]
+            if isinstance(e, (ConnectionResetError, ConnectionAbortedError,
+                              BrokenPipeError, ssl.SSLEOFError, TimeoutError)):
+                log(f"[tls] {client_address[0]} closed the connection early ({type(e).__name__})")
+                return
+            super().handle_error(request, client_address)
+
     httpd = LoggingHTTPSServer((BIND, PORT), Handler)
     httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True,
                                    do_handshake_on_connect=True)
