@@ -94,11 +94,13 @@ Welcome back to the wilderness of 2016—free from the boardrooms, free from the
 
 - 🍎 **iPhone (0.29 and 0.35):** works with the stock client — no patching — on the same Wi-Fi or
   over Tailscale. Full walkthrough: [`src/server/IOS_SETUP.md`](src/server/IOS_SETUP.md).
-- 🤖 **Android (0.29):** needs a one-time static metadata patch to the APK (see
-  [Reverse engineering](#-reverse-engineering-the-client)); no root, user-installed CA.
+- 🤖 **Android (0.29):** one command patches your own APK for Android 7+ (`src/tools/patch_apk.py`:
+  plugin path, login hostname, repackage, sign — Python only); no root, user-installed CA. Full
+  walkthrough: [`src/server/ANDROID_SETUP.md`](src/server/ANDROID_SETUP.md).
 - 🤖 **Android (0.35):** also supported, through an APK patcher
 
-Step-by-step device guides live in `src/server/IOS_SETUP.md`, `src/server/DEVICE_SETUP.md`, `src/server/RUN.md`,
+Step-by-step device guides live in `src/server/IOS_SETUP.md`, `src/server/ANDROID_SETUP.md`,
+`src/server/DEVICE_SETUP.md`, `src/server/RUN.md`,
 `src/server/GNIREHTET.md` and `src/server/VPN.md`.
 
 ## ⚠️ Known limitations
@@ -198,7 +200,9 @@ py -m PyInstaller "Start-Pokemon-GO-Server.spec" --distpath ../../RELEASE --noco
 
 ### 📲 On the phone (Android, no root)
 
-1. Install your patched 0.29 APK. Then open **`http://<the IP the launcher prints>/`** in the
+The full route is in [`src/server/ANDROID_SETUP.md`](src/server/ANDROID_SETUP.md). In short:
+
+1. Install your patched 0.29 APK (`py src/tools/patch_apk.py your-0.29.0.apk`). Then open **`http://<the IP the launcher prints>/`** in the
    phone's browser: it is the setup page, with the CA (`ca.crt`) one tap away to install as a
    **user** certificate.
 2. In Wi-Fi settings, set **DNS to the IP the launcher prints** (leave DNS 2 blank). The setup
@@ -263,7 +267,18 @@ py src/scripts/DOWNLOAD.py --group assets  # the Asset Editor (UnityPy==1.25.2, 
 py src/scripts/DOWNLOAD.py --check         # report what's missing, install nothing
 ```
 
-### 🩹 `src/patcher/patcher.py` — APK patcher
+### 🩹 `src/tools/patch_apk.py` — 0.29 APK for Android 7+
+
+One command: metadata patch (absolute plugin path), PTC login URLs onto `pgorelease.nianticlabs.com`,
+repackage, and an APK Signature Scheme v2 signature from `src/tools/apksign.py` — all in Python, no
+SDK, Java or Node. The signing key is created on first use in `src/server/data/apk_sign/` and kept.
+
+```bash
+py src/tools/patch_apk.py pokemon-go-0.29.0.apk      # -> pokemon-go-0.29.0-windstock.apk
+py src/tools/apksign.py verify some.apk              # check any APK's v2 signature
+```
+
+### 🩹 `src/patcher/patcher.py` — APK patcher (0.35)
 
 A desktop GUI (CustomTkinter) that runs `npx apk-mitm` over an APK and strips **certificate
 pinning**, so the phone will trust your local CA. Requires **Node.js** (for `npx`) and the
