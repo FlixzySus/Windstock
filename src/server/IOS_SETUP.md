@@ -40,10 +40,15 @@ Pokémon GO has it there.
    --external-version-id <id>` shows the version number for an id.
 3. Download it:
    `ipatool download -b com.nianticlabs.pokemongo --external-version-id <id> -o pogo.ipa`
-4. Install it. Delete the current Pokémon GO first. Then use **Apple
-   Configurator 2** (Mac: drag `pogo.ipa` onto the phone) or `ideviceinstaller -i pogo.ipa`
-   (Windows/Linux, from libimobiledevice). The iPhone must be signed into the
-   **same Apple ID** that downloaded the file.
+4. Install it **without re-signing it**. Delete the current Pokémon GO first.
+   Then use **Apple Configurator 2** (Mac: drag `pogo.ipa` onto the phone) or
+   `ideviceinstaller -i pogo.ipa` (Windows/Linux, from libimobiledevice). The
+   iPhone must be signed into the **same Apple ID** that downloaded the file.
+
+   > **Not AltStore, Sideloadly, TrollStore or Xcode.** The file is encrypted
+   > (FairPlay) for your Apple ID, and those tools re-sign it. A re-signed
+   > encrypted app crashes the instant it opens, before it ever contacts the
+   > server. That is the number one cause of "it just closes".
 5. Turn **off** automatic app updates (Settings → App Store → App Updates).
    Otherwise iOS will replace the old version with today's.
 
@@ -163,5 +168,5 @@ tunnel it: `ssh -L 8080:127.0.0.1:8080 you@server`, then open the same URL.
 | *Unable to authenticate* | The certificate isn't fully trusted (step 3.3), or you typed a different password from that trainer's first login. Open `https://pgorelease.nianticlabs.com/check` in Safari: a warning there means the certificate. |
 | Stuck on the loading screen | DNS isn't pointed at the server. Re-check step 4 and the Safari test. |
 | Nothing shows in the server console | The phone can't reach the computer: firewall, wrong IP, or the phone isn't on the same Wi-Fi / Tailscale. |
-| The app closes as soon as it opens | That 2016 build doesn't run on your iOS version. The server can't fix this. |
+| The app closes as soon as it opens, and the server window shows nothing | The phone never reached the server, so this is the app itself. Read its crash log: Settings → Privacy & Security → Analytics & Improvements → Analytics Data → the newest `pokemongo-…` entry, and look at the first lines. **Code signing / FairPlay** (`Termination Reason: CODESIGNING`, or an error mentioning `Invalid Page`): the IPA is encrypted for the Apple ID that downloaded it, so it must be installed with the phone signed into **that** Apple ID and must not be re-signed by a sideloading tool (AltStore, Sideloadly, Xcode). **`EXC_BAD_ACCESS` / `EXC_CRASH` inside the app's own code** (`UnityFramework`, `libil2cpp`, `pokemongo`): the 2016 build doesn't run on this iOS version; the server can't fix that. |
 | Coins don't change on screen | Close and reopen the game. Coins only refresh when the app asks for your player data again. |
