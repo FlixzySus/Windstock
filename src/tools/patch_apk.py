@@ -37,6 +37,7 @@ Only your own APK goes in; nothing patched is ever distributed.
 """
 import argparse
 import os
+import struct
 import subprocess
 import sys
 import tempfile
@@ -57,6 +58,29 @@ def _detect_client(z):
         if ver.encode("utf-16-le") in manifest or ver.encode() in manifest:
             return ver[:4]
     return None
+
+
+PLUGIN_LITERAL = b"libNianticLabsPlugin.so"
+
+
+def _literals(meta, needle):
+    """String literals of an il2cpp global-metadata.dat that contain `needle`
+    (same table the patch scripts repoint)."""
+    try:
+        sanity, _version = struct.unpack_from("<II", meta, 0)
+        if sanity != 0xFAB11BAF:
+            return []
+        lit_off, lit_size, data_off, data_size = struct.unpack_from("<iiii", meta, 8)
+    except struct.error:
+        return []
+    out = []
+    for i in range(lit_size // 8):
+        ln, di = struct.unpack_from("<Ii", meta, lit_off + i * 8)
+        if 0 < ln < 300 and 0 <= di and di + ln <= data_size:
+            lit = meta[data_off + di:data_off + di + ln]
+            if needle in lit:
+                out.append(lit)
+    return out
 
 
 def _run(script, *args):
@@ -110,8 +134,21 @@ def main():
         with open(m0, "wb") as fh:
             fh.write(meta)
 
-        print("1. plugin path for Android 7+ (metadata_patch.py)")
-        _run("metadata_patch.py", m0, m1, a.package)
+        if _literals(meta, PLUGIN_LITERAL):
+            print("1. plugin path for Android 7+ (metadata_patch.py)")
+            _run("metadata_patch.py", m0, m1, a.package)
+        else:
+            # 0.35 has no such literal: it does not load the plugin by that
+            # relative name, so the Android 7+ System.load rule never bites and
+            # there is nothing to repoint. Say what it has instead, so a launch
+            # crash on that build can be traced to the right string.
+            m1 = m0
+            print(f"1. plugin path: this build has no {PLUGIN_LITERAL.decode()!r} literal, "
+                  "so the Android 7+ plugin-path patch is not needed -- skipped")
+            related = _literals(meta, b"NianticLabsPlugin") + [
+                l for l in _literals(meta, b".so") if b"NianticLabsPlugin" not in l]
+            for lit in related[:8]:
+                print(f"   (plugin-related string: {lit.decode(errors='replace')!r})")
         if a.keep_sso_host:
             m2 = m1
             print("2. PTC login URLs left as they are (--keep-sso-host)")

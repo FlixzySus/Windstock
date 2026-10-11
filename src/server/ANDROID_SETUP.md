@@ -47,9 +47,10 @@ It reads which build it is from the manifest (`--client 0.29` / `--client 0.35`
 if it can't), writes `…-windstock.apk` next to the input and verifies its
 signature. Four things happen, nothing else changes:
 
-1. **Plugin path.** Android 7+ refuses `System.load("libNianticLabsPlugin.so")`
-   without an absolute path, which is why the stock APK dies on launch there. One
+1. **Plugin path (0.29).** Android 7+ refuses `System.load("libNianticLabsPlugin.so")`
+   without an absolute path, which is why the stock 0.29 APK dies on launch there. One
    string inside the game's metadata becomes `/data/data/com.nianticlabs.pokemongo/lib/…`.
+   0.35 has no such string (it loads the plugin another way), so this step is skipped there.
 2. **Login URLs.** The PTC login URLs move from `sso.pokemon.com` to
    `pgorelease.nianticlabs.com`, the hostname that reliably resolves to this server
    (a phone's second resolver or encrypted DNS likes to win the race for
