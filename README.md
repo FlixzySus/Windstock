@@ -159,21 +159,16 @@ Or alternatively, install dependencies manually (recommended)
 On Linux it installs system-wide via `sudo` by default; pass `--user`, `--venv` or `--no-sudo` to
 change that. `--check`, `--list` and `--dry-run` are available too.
 
-**1 · Generate the certificates (once):**
-
-```bash
-cd src/server
-py windstock/tools/gen_certs.py       # or: py -m windstock.tools.gen_certs
-```
-
-**2 · Start the server:**
+**1 · Start the server:**
 
 ```bash
 py __main__.py
 ```
 
-`__main__.py` detects this PC's LAN IP and starts the DNS redirector and the game server. Pass an
-IP to use a specific one, such as a Tailscale address:
+`__main__.py` detects this PC's LAN IP and starts the DNS redirector and the game server. The first
+start generates the TLS certificates too (`py windstock/tools/gen_certs.py` does the same by hand;
+it works with or without OpenSSL installed). Pass an IP to use a specific one, such as a Tailscale
+address:
 
 ```bash
 py __main__.py 100.x.y.z
@@ -192,7 +187,7 @@ OSM Overpass API the first time you play somewhere, caching it in `data/osm_biom
 `/default` in the server console to (re)select that, or `/default off` to fall back to the
 classic biome/rarity spawner.
 
-**3 · Build a standalone exe (optional):**
+**2 · Build a standalone exe (optional):**
 
 ```bash
 py -m PyInstaller "Start-Pokemon-GO-Server.spec" --distpath ../../RELEASE --noconfirm --clean
@@ -200,9 +195,12 @@ py -m PyInstaller "Start-Pokemon-GO-Server.spec" --distpath ../../RELEASE --noco
 
 ### 📲 On the phone (Android, no root)
 
-1. Install your patched 0.29 APK, and install the CA (`src/server/certs/ca.crt`) as a **user**
-   certificate.
-2. In Wi-Fi settings, set **DNS to the IP the launcher prints** (leave DNS 2 blank).
+1. Install your patched 0.29 APK. Then open **`http://<the IP the launcher prints>/`** in the
+   phone's browser: it is the setup page, with the CA (`ca.crt`) one tap away to install as a
+   **user** certificate.
+2. In Wi-Fi settings, set **DNS to the IP the launcher prints** (leave DNS 2 blank). The setup
+   page at `http://pgorelease.nianticlabs.com/` shows a tick when that works, and
+   `https://pgorelease.nianticlabs.com/check` confirms the certificate.
 3. For a stable map indoors, use a **mock-GPS app** set as the mock-location app, with Location
    mode set to **GPS only** (not High accuracy).
 4. Start the game and log in with any name.

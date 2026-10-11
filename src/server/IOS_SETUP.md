@@ -56,7 +56,6 @@ git clone https://github.com/FlixzySus/Windstock.git
 cd Windstock
 python3 -m pip install -r requirements.txt     # just s2sphere; osmium is optional
 cd src/server
-python3 windstock/tools/gen_certs.py           # once: makes certs/ca.crt
 ```
 
 Find the address the iPhone will use to reach this computer:
@@ -68,7 +67,8 @@ Find the address the iPhone will use to reach this computer:
   `100.x.y.z` address (`tailscale ip -4`).
 
 Start it. It needs ports **53** (DNS), **443** (game) and **80**, so it must run
-as admin/root:
+as admin/root. The first start also generates the server's certificate (a
+minute at most) and prints the address to use on the phone:
 
 ```bash
 sudo python3 run.py 192.168.1.50      # macOS / Linux  (your IP here)
@@ -87,17 +87,21 @@ On macOS, click **Allow** when it asks whether Python may accept incoming connec
 
 ## 3. Trust Windstock's certificate on the iPhone
 
-1. Send **`src/server/certs/ca.crt`** to the phone: AirDrop, email it to
-   yourself, or put it in iCloud Drive and open it in Files.
-   **Only `ca.crt`.** Never share `ca.key`: anyone who has it can read the
-   encrypted traffic of every device that trusts this certificate.
-2. Tap it. iOS says *Profile Downloaded*.
-3. **Settings → General → VPN & Device Management →** the Windstock profile →
-   **Install**.
-4. **Settings → General → About → Certificate Trust Settings →** switch **on**
-   full trust for the Windstock root.
+The running server has a setup page the phone can open **before** it trusts
+anything: in Safari, go to **`http://<the computer's IP>/`** (plain http, the
+address the server printed). It walks through the rest, and the certificate is
+one tap away at `http://<ip>/ca.crt`. In full:
 
-Step 4 is the one people miss. Without it the app says *Unable to authenticate*.
+1. Tap **Download certificate** on that page, then **Allow**. iOS says
+   *Profile Downloaded*. (No setup page? AirDrop `src/server/certs/ca.crt`
+   instead. **Only `ca.crt`**: `ca.key` lets anyone read every trusting phone's
+   traffic.)
+2. **Settings → General → VPN & Device Management →** *PoGO Private CA* →
+   **Install**.
+3. **Settings → General → About → Certificate Trust Settings →** switch **on**
+   *PoGO Private CA*.
+
+Step 3 is the one people miss. Without it the app says *Unable to authenticate*.
 
 ## 4. Point the iPhone's DNS at the server
 
@@ -110,9 +114,10 @@ console → **DNS → Nameservers → Add nameserver → Custom** → the comput
 `100.x` address, and turn on **Override local DNS**. Keep the Tailscale app
 connected on the phone.
 
-Quick check: in Safari, open `https://pgorelease.nianticlabs.com/`. If you see a
-reply (even an empty page) and no certificate warning, DNS and the certificate
-are both working.
+Quick check: open `http://pgorelease.nianticlabs.com/` in Safari. The setup
+page should load again, now with a tick under step 2: DNS is working. Then open
+**`https://pgorelease.nianticlabs.com/check`**. A green tick there means the
+certificate is trusted too, and you are ready to play.
 
 ## 5. Play
 
@@ -152,7 +157,7 @@ tunnel it: `ssh -L 8080:127.0.0.1:8080 you@server`, then open the same URL.
 
 | Symptom | Fix |
 |---|---|
-| *Unable to authenticate* | The certificate isn't fully trusted (step 3.4), or you typed a different password from that trainer's first login. |
+| *Unable to authenticate* | The certificate isn't fully trusted (step 3.3), or you typed a different password from that trainer's first login. Open `https://pgorelease.nianticlabs.com/check` in Safari: a warning there means the certificate. |
 | Stuck on the loading screen | DNS isn't pointed at the server. Re-check step 4 and the Safari test. |
 | Nothing shows in the server console | The phone can't reach the computer: firewall, wrong IP, or the phone isn't on the same Wi-Fi / Tailscale. |
 | The app closes as soon as it opens | That 2016 build doesn't run on your iOS version. The server can't fix this. |

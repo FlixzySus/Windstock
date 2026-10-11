@@ -62,7 +62,8 @@ def _guard_real_account():
 
 
 _guard_real_account()
-CA = os.path.join(paths.CERT_DIR, "ca.crt")
+# Same override the server honours, so a test against CERT_DIR=... trusts that CA.
+CA = os.path.join(os.environ.get("CERT_DIR", paths.CERT_DIR), "ca.crt")
 
 
 class PinnedHTTPSConnection(http.client.HTTPSConnection):

@@ -8,6 +8,7 @@ Run:  py server.py            # listens on 0.0.0.0:443
       PORT=8443 py server.py  # custom port (for local testing without root)
 """
 import datetime
+import html
 import os
 import ssl
 import sys
@@ -59,6 +60,21 @@ class Handler(BaseHTTPRequestHandler):
                 # by exact path, so it cannot shadow the game's own routes.
                 status, headers, out = website.handle(method, path, query,
                                                             self.headers, body, log)
+            elif path == "/check":
+                # The last step of the phone setup page (sso_bridge.py): a
+                # phone that renders this over HTTPS, under one of our
+                # hostnames, has both the DNS redirect and the CA in place.
+                status, headers, out = 200, {"Content-Type": "text/html; charset=utf-8"}, (
+                    "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+                    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                    "<title>Windstock check</title></head><body style=\"margin:0;padding:40px 22px;"
+                    "font:19px/1.5 -apple-system,'Segoe UI',Roboto,sans-serif;color:#172236;"
+                    "background:#eaeef6\"><div style=\"font-size:54px\">&#9989;</div>"
+                    "<h1 style=\"font-size:24px;margin:6px 0\">Certificate trusted, DNS working</h1>"
+                    "<p>This page came over HTTPS from the Windstock server as "
+                    f"<b>{html.escape(host)}</b>. You are ready: open Pok&eacute;mon GO &rarr; "
+                    "<b>Pok&eacute;mon Trainer Club</b> &rarr; any username and password.</p>"
+                    "</body></html>").encode("utf-8")
             elif path.startswith("/shiny"):
                 # The shiny models' server half: a client-side AGENT polls this
                 # for the verdict on whatever is on screen. Purely additive --

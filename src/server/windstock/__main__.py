@@ -112,11 +112,18 @@ def main(ui_stream=None):
     from windstock.net import sso_bridge
 
     if not (os.path.exists(server.CERT) and os.path.exists(server.KEY)):
-        print(paint("!! ", BOLD, BRED)
-              + paint(f"TLS certs not found in {os.environ['CERT_DIR']}.", BRED))
-        print(paint("   Run gen_certs.py once, or ship the certs/ folder "
-                    "alongside this.", DIM))
-        sys.exit(1)
+        # First start: make this install's own CA + server certificate. The
+        # phones fetch the CA from the setup page (http://<ip>/ca.crt).
+        print(paint("   no TLS certificate yet -- generating one (first start only)", DIM))
+        try:
+            from windstock.tools import gen_certs
+            gen_certs.main()
+        except Exception as e:
+            print(paint("!! ", BOLD, BRED)
+                  + paint(f"could not generate the TLS certificates: {e}", BRED))
+            print(paint("   Run gen_certs.py by hand, or copy a certs/ folder "
+                        f"to {os.environ['CERT_DIR']}.", DIM))
+            sys.exit(1)
 
     # World Manager (localhost only -- never exposed to the phone/network)
     try:
@@ -141,6 +148,12 @@ def main(ui_stream=None):
     print(kv("Point the phone's DNS at", redirect_ip, BCYAN))
     print(kv("Game server", f"https://{redirect_ip}:{os.environ['PORT']}", BGREEN))
     print(kv("DNS redirect", f"udp {redirect_ip}:{os.environ['DNS_PORT']}", BYELLOW))
+    print(kv("Dev Panel (this PC)", f"{admin_url}/dev", BGREEN))
+    rule("-")
+    print(kv("Phone setup page", f"http://{redirect_ip}/", BCYAN))
+    print("  " + paint("phone:", BOLD, BCYAN)
+          + paint(f" Wi-Fi DNS = {redirect_ip} (the only entry), then open that page"
+                  " in the phone's browser and follow its three steps", DIM))
     if gnirehtet:
         print(kv("Reverse tether", "gnirehtet (USB cable)", BCYAN))
     rule("-")
