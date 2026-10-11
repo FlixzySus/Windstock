@@ -104,7 +104,7 @@ PAGE = r"""<!doctype html><html><head><meta charset="utf-8">
     </svg></div>
     <div class="word"><h1>Windstock</h1><small>World Manager</small></div>
   </div>
-  <nav class="topnav"><a class="active" href="/">Manager</a><a href="/downloads">World Data</a></nav>
+  <nav class="topnav"><a class="active" href="/">Manager</a><a href="/downloads">World Data</a><a href="/dev">Dev Panel</a></nav>
   <div class="spacer"></div>
   <div class="pill" id="status">Running</div>
   <div class="meta">
@@ -746,6 +746,9 @@ class _Handler(BaseHTTPRequestHandler):
                                   .replace("__DEX__", json.dumps(DEX))
                                   .replace("__GIVEABLE__", json.dumps(GIVEABLE)))
 
+        if p == "/dev":
+            from windstock.web import devpanel
+            return self._send(200, "text/html; charset=utf-8", devpanel.page())
         if p == "/downloads":
             from windstock.web import downloads_ui
             return self._send(200, "text/html; charset=utf-8", downloads_ui.world())
@@ -840,6 +843,9 @@ class _Handler(BaseHTTPRequestHandler):
         except ValueError:
             d = {}
         try:
+            if p.startswith("/api/dev/"):
+                from windstock.web import devpanel
+                return self._json(devpanel.handle(p, d))
             if p == "/downloads/start":
                 from windstock.geo import poidownload
                 region = (d.get("region") or "").strip()
@@ -866,7 +872,8 @@ class _Handler(BaseHTTPRequestHandler):
             if p == "/api/give":
                 from windstock.game import world
                 import contextlib as _ctx
-                who = (d.get("player") or "").strip()
+                from windstock.game import rpc as _rpc
+                who = (d.get("player") or "").strip() or (_rpc._last_user[0] or "")
                 kind = d.get("kind", "item")
                 # Blank means "whoever is playing right now", which keeps the old
                 # one-click behaviour. A name is validated against existing saves

@@ -1533,7 +1533,7 @@ def add_bonus_spawn(username, eid, pid, cp, lat, lng, expires_ms):
         lst = BONUS_SPAWNS.setdefault(username, [])
         lst.append({"eid": eid, "pid": pid, "cp": cp, "lat": lat, "lng": lng,
                     "expires_ms": expires_ms})
-        del lst[:-10]
+        del lst[:-30]
 
 
 def bonus_spawns(username):

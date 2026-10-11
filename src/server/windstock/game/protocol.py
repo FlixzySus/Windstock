@@ -2449,6 +2449,7 @@ def build_catch_pokemon_response(encounter_id, pokeball, hit, now_ms,
     # Pokemon by id, just overwrote the earlier one.
     uid = world.new_uid(encounter_id)
     world.add_caught(uid, s["pokemon_id"], s["cp"])
+    _note_shiny_catch(uid, encounter_id, s["pokemon_id"])
     world.pokedex_caught(s["pokemon_id"])
     _score_medals(s["pokemon_id"], uid)
     world.remove_spawn(encounter_id)                      # it's ours now; clear the map
@@ -3223,6 +3224,98 @@ def _raid_drop(b, now_ms):
     world.add_bonus_spawn(world.current().username, eid, b["def_pid"],
                           b["def_cp"], lat, lng, expires)
     return eid
+
+
+def _note_shiny_catch(uid, encounter_id, pokemon_id):
+    """Remember that a caught Pokemon is shiny (rolled, or forced by the Dev
+    Panel). A Dev Panel shiny can also carry a '*Name' nickname: the 2016
+    client has no shiny look of its own, so that is how it shows on a stock
+    phone."""
+    from windstock.game import world, shiny
+    try:
+        if not shiny.is_shiny(encounter_id, pokemon_id):
+            return
+        f = shiny.forced(encounter_id)
+        fields = {"shiny": True}
+        if f and f.get("mark"):
+            fields["nickname"] = shiny_nickname(pokemon_id)
+        world.update_caught(uid, **fields)
+    except Exception:
+        pass
+
+
+def shiny_nickname(pokemon_id):
+    from windstock.web.admin import DEX
+    name = DEX[pokemon_id] if 0 < pokemon_id < len(DEX) else f"#{pokemon_id}"
+    return ("*" + name)[:12]
+
+
+def auto_cp(pokemon_id, uid, level=20):
+    """CP of this individual (its fixed IVs) at a trainer-ish level."""
+    cpms = _gd.CPM if (_gd and _gd.CPM) else None
+    if not cpms:
+        return 500
+    return cp_at_level(pokemon_id, uid, cpms[max(0, min(len(cpms) - 1, level))])
+
+
+def dev_spawn(pokemon_id, cp=0, shiny_on=False, mark=True, count=1,
+              minutes=15, lat=None, lng=None):
+    """Dev Panel: put wild Pokemon at the current trainer's feet, catchable,
+    for that trainer only. Returns the encounter ids, or None when there is no
+    location to put them at (the game has not reported one yet)."""
+    from windstock.game import world, shiny
+    from windstock.game import rpc as _rpc
+    if lat is None or lng is None:
+        pos = world.current().LAST_POS or _rpc._last_loc
+        lat, lng = float(pos[0]), float(pos[1])
+    if not (abs(lat) > 1e-6 or abs(lng) > 1e-6):
+        return None
+    now_ms = int(time.time() * 1000)
+    expires = now_ms + max(1, int(minutes)) * 60 * 1000
+    count = max(1, min(10, int(count)))
+    out = []
+    for i in range(count):
+        eid = _random.getrandbits(62) | 1
+        # A small ring 6-12 m out, so several don't sit on top of each other
+        # (or inside the avatar).
+        a = 2 * _math.pi * (i / count) + _random.random() * 0.5
+        r_m = 6.0 + 6.0 * _random.random()
+        dlat = r_m * _math.cos(a) / 111320.0
+        dlng = r_m * _math.sin(a) / (111320.0 * max(0.2, _math.cos(_math.radians(lat))))
+        c = int(cp) if cp else auto_cp(pokemon_id, eid, _random.randint(10, 30))
+        c = max(10, min(9999, c))
+        sid = _hex_id((eid, "dev"), 11)
+        if shiny_on:
+            shiny.force(eid, ttl_s=max(1, int(minutes)) * 60 + 600, mark=mark)
+        world.remember_spawn(eid, pokemon_id, lat + dlat, lng + dlng, c, sid, expires)
+        world.add_bonus_spawn(world.current().username, eid, pokemon_id, c,
+                              lat + dlat, lng + dlng, expires)
+        out.append(eid)
+    return out
+
+
+def dev_give_pokemon(pokemon_id, cp=0, shiny_on=False, mark=True, count=1):
+    """Dev Panel: put Pokemon straight into the current trainer's collection.
+    Returns how many were added (stops early if the box is full)."""
+    from windstock.game import world
+    count = max(1, min(50, int(count)))
+    made = 0
+    for _ in range(count):
+        if world.pokemon_full():
+            break
+        uid = world.new_uid(_random.getrandbits(62))
+        c = max(10, min(9999, int(cp))) if cp else auto_cp(pokemon_id, uid, 25)
+        world.add_caught(uid, pokemon_id, c)
+        if shiny_on:
+            fields = {"shiny": True}
+            if mark:
+                fields["nickname"] = shiny_nickname(pokemon_id)
+            world.update_caught(uid, **fields)
+        world.pokedex_saw(pokemon_id)
+        world.pokedex_caught(pokemon_id)
+        world.bump_type(pokemon_id)
+        made += 1
+    return made
 
 
 def parse_attack_gym(msg):
@@ -4366,6 +4459,14 @@ def build_get_map_objects_response(cell_ids, lat, lng) -> bytes:
         _osm_by_cell = {}
     _osm_any = bool(_osm_by_cell)
     _placed_forts, _placed_spawns = {}, {}
+    _bonus_list = []
+    for _b in _world.bonus_spawns(_world.current().username):
+        try:
+            _b["_cell"] = s2sphere.CellId.from_lat_lng(
+                s2sphere.LatLng.from_degrees(_b["lat"], _b["lng"])).parent(15).id()
+        except Exception:
+            _b["_cell"] = player_cell
+        _bonus_list.append(_b)
     # Hand-placed forts (few) are bucketed in full...
     for _f in _pl["forts"]:
         try:
@@ -4681,22 +4782,23 @@ def build_get_map_objects_response(cell_ids, lat, lng) -> bytes:
                     spawns.append(build_spawn_point(dl, dn))
                     _sight(nearby, pid, dl, dn, eid)
 
-        # A defeated raid boss waiting at the trainer's feet (their cell only).
-        if cid == player_cell:
-            for _b in _world.bonus_spawns(_world.current().username):
-                if _world.is_despawned(_b["eid"]):
-                    continue
-                _bsid = _hex_id((_b["eid"], "raid"), 11)
-                wild.append(build_wild_pokemon(_b["eid"], _b["lat"], _b["lng"],
-                                               _bsid, _b["pid"], now,
-                                               max(60_000, _b["expires_ms"] - now),
-                                               cp=_b["cp"]))
-                catch.append(build_map_pokemon(_bsid, _b["eid"], _b["pid"],
-                                               _b["lat"], _b["lng"], _b["expires_ms"]))
-                _world.remember_spawn(_b["eid"], _b["pid"], _b["lat"], _b["lng"],
-                                      _b["cp"], _bsid, _b["expires_ms"])
-                spawns.append(build_spawn_point(_b["lat"], _b["lng"]))
-                _sight(nearby, _b["pid"], _b["lat"], _b["lng"], _b["eid"])
+        # One-off spawns for this trainer: a defeated raid boss at their feet, or
+        # whatever the Dev Panel put there. Each goes in the cell it is really in
+        # -- a spawn a few metres away can sit across a cell border.
+        for _b in _bonus_list:
+            if _world.is_despawned(_b["eid"]) or _b["_cell"] != cid:
+                continue
+            _bsid = _hex_id((_b["eid"], "raid"), 11)
+            wild.append(build_wild_pokemon(_b["eid"], _b["lat"], _b["lng"],
+                                           _bsid, _b["pid"], now,
+                                           max(60_000, _b["expires_ms"] - now),
+                                           cp=_b["cp"]))
+            catch.append(build_map_pokemon(_bsid, _b["eid"], _b["pid"],
+                                           _b["lat"], _b["lng"], _b["expires_ms"]))
+            _world.remember_spawn(_b["eid"], _b["pid"], _b["lat"], _b["lng"],
+                                  _b["cp"], _bsid, _b["expires_ms"])
+            spawns.append(build_spawn_point(_b["lat"], _b["lng"]))
+            _sight(nearby, _b["pid"], _b["lat"], _b["lng"], _b["eid"])
 
         spawned += len(wild)
         w.message(1, build_map_cell(cid, now, catch, forts, wild,

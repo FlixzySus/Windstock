@@ -61,6 +61,11 @@ ENCOUNTER_TTL_S = 180      # an encounter nobody finished stops counting after t
 _JUDGED = {}
 _MAX_JUDGED = 65536
 
+# encounter_id -> {"expires": unix time, "mark": bool}. Spawns the Dev Panel
+# made shiny on purpose. These are shiny whatever `shiny.enabled` and the rate
+# say, because someone asked for exactly that spawn.
+_FORCED = {}
+
 
 def enabled():
     """Is the shiny feature on? Everything below is a no-op when it isn't."""
@@ -95,6 +100,31 @@ def effective_rate():
     return max(0.0, min(1.0, _cfg.get("shiny", "rate", cast=float)))
 
 
+def force(encounter_id, ttl_s=3600, mark=True):
+    """Make one encounter shiny (Dev Panel spawns). `mark` also nicknames the
+    Pokemon '*Name' when it is caught, so a stock client -- which has no shiny
+    look of its own -- still shows which ones they are."""
+    now = time.time()
+    with _lock:
+        for k in [k for k, v in _FORCED.items() if v["expires"] < now]:
+            _FORCED.pop(k, None)
+        _FORCED[int(encounter_id)] = {"expires": now + ttl_s, "mark": bool(mark)}
+
+
+def forced(encounter_id):
+    """The force() entry for this encounter, or None."""
+    try:
+        eid = int(encounter_id)
+    except (TypeError, ValueError):
+        return None
+    with _lock:
+        f = _FORCED.get(eid)
+        if f and f["expires"] < time.time():
+            _FORCED.pop(eid, None)
+            f = None
+        return dict(f) if f else None
+
+
 def is_shiny(encounter_id, pokemon_id):
     """Fixed per spawn: the same encounter id always gives the same answer.
 
@@ -102,6 +132,8 @@ def is_shiny(encounter_id, pokemon_id):
     restarting the server -- the answer is always the same, so there is no
     rerolling.
     """
+    if forced(encounter_id):
+        return True
     if not enabled():
         return False
     try:
@@ -167,8 +199,8 @@ def handle(method, path, query, headers, body, log=None, ip=None):
     out = {
         "species": sorted(species_with_models()),
         "encounter": None,
-        # Nothing here records a shiny on a CAUGHT Pokemon: the Shinydex and the
-        # custom medals that needed it are not on this branch.
+        # Caught Pokemon that are shiny (rolled or made by the Dev Panel), so
+        # the agent can show the shiny model on the details screen too.
         "shiny_uids": [],
         "charm": False,
         "incense_ms": 0,
@@ -176,14 +208,21 @@ def handle(method, path, query, headers, body, log=None, ip=None):
         "gym": None,
         "map": None,
     }
-    if enabled():
-        # This server identifies a trainer by the username on the RPC envelope
-        # (rpc._last_user), not by phone IP as bracky-dev did.
-        from windstock.game import rpc
-        user = rpc._last_user[0]
-        if user:
-            enc = current_encounter(user)
-            if enc:
-                out["encounter"] = {k: enc.get(k) for k in ("eid", "pokemon_id", "shiny")}
+    # This server identifies a trainer by the username on the RPC envelope
+    # (rpc._last_user), not by phone IP as bracky-dev did. An encounter is only
+    # ever noted when the feature is on or the spawn was forced shiny.
+    from windstock.game import rpc
+    user = rpc._last_user[0]
+    if user:
+        enc = current_encounter(user)
+        if enc:
+            out["encounter"] = {k: enc.get(k) for k in ("eid", "pokemon_id", "shiny")}
+        try:
+            from windstock.game import world
+            with world.acting_as(user):
+                out["shiny_uids"] = [str(c["uid"]) for c in world.caught()
+                                     if c.get("shiny")]
+        except Exception:
+            pass
     return 200, {"Content-Type": "application/json", "Cache-Control": "no-store"}, \
         json.dumps(out).encode("utf-8")

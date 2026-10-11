@@ -71,6 +71,8 @@ Welcome back to the wilderness of 2016—free from the boardrooms, free from the
   the map, catching, stops and gyms all still work; creatures fall back to the client's 2D icons.
 - 🧭 **World Manager** — a local web UI (`http://localhost:8080`) to place and manage PokéStops and
   Gyms, download real POIs, run events, and inspect server state.
+- 🛠️ **Dev Panel** — `http://localhost:8080/dev`: spawn any Pokémon (normal or shiny) next to you or
+  straight into your collection, add or set PokéCoins, and hand out any item, stardust or candy.
 - 💬 **Help Center** and a public status/site page.
 - 📦 **One-file launcher** and an optional standalone `.exe` (no Python needed on the host).
 
@@ -90,12 +92,13 @@ Welcome back to the wilderness of 2016—free from the boardrooms, free from the
 
 ## 📱 Platforms
 
-- 🍎 **iPhone (0.29 and 0.35):** works with the stock client — no patching — reached over Tailscale.
+- 🍎 **iPhone (0.29 and 0.35):** works with the stock client — no patching — on the same Wi-Fi or
+  over Tailscale. Full walkthrough: [`src/server/IOS_SETUP.md`](src/server/IOS_SETUP.md).
 - 🤖 **Android (0.29):** needs a one-time static metadata patch to the APK (see
   [Reverse engineering](#-reverse-engineering-the-client)); no root, user-installed CA.
 - 🤖 **Android (0.35):** also supported, through an APK patcher
 
-Step-by-step device guides live in `src/server/DEVICE_SETUP.md`, `src/server/RUN.md`,
+Step-by-step device guides live in `src/server/IOS_SETUP.md`, `src/server/DEVICE_SETUP.md`, `src/server/RUN.md`,
 `src/server/GNIREHTET.md` and `src/server/VPN.md`.
 
 ## ⚠️ Known limitations
