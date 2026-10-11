@@ -116,6 +116,51 @@ first login sets that trainer's password, so keep using the same one. On the
 computer, `http://127.0.0.1:8080/dev` is the [Dev Panel](IOS_SETUP.md#6-the-dev-panel-spawns-shinies-coins-items)
 (spawns, shinies, coins, items).
 
+## Android Studio emulator instead of a phone
+
+The game's native code is 32-bit ARM, so it only runs in an emulator whose
+system image can translate ARM. In Android Studio that means an **x86_64
+"Google APIs" image, API 30 or newer** (Android 11+): those ship Google's ARM
+translation. Older images, "Google Play" images on some hosts, and third-party
+x86 emulators (BlueStacks, LDPlayer, MEmu, Nox) can't run it: the repo's authors
+tried every one of those. An Apple-silicon Mac can't either (its arm64 images
+can't execute 32-bit ARM code). Treat the emulator as *worth a try*; a real phone
+is the route that is known to work.
+
+1. **Device Manager → Create device** → any phone (Pixel 6 is fine) → system
+   image tab **x86 Images** → an entry with **API 30+**, ABI **x86_64**, target
+   **Google APIs** (not "Google Play" if you also want `adb root`). Finish, and
+   note the AVD's name (`Pixel_6_API_34`, say).
+2. **Start the server for the emulator.** From the emulator, the PC is
+   `10.0.2.2`, so the DNS must hand out that address:
+   ```
+   src\server\start.bat 10.0.2.2
+   ```
+3. **Start the emulator with Windstock as its DNS server.** The emulator does
+   its DNS on the PC side, so the address is the PC's own loopback:
+   ```
+   %LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe -avd Pixel_6_API_34 -dns-server 127.0.0.1
+   ```
+   (Starting it from the Device Manager instead uses the PC's normal DNS, and the
+   game then talks to the real Niantic servers, which refuse it.)
+4. **Install the patched APK:** drag `pokemon-go-…-windstock.apk` onto the
+   emulator window, or `adb install pokemon-go-…-windstock.apk`. If it refuses
+   with `INSTALL_FAILED_NO_MATCHING_ABIS`, the image has no ARM translation:
+   go back to step 1 and pick an API 30+ x86_64 Google APIs image.
+5. **Certificate:** in the emulator's Chrome open `http://10.0.2.2/`, tap
+   **Download certificate**, then Settings → Security → Encryption & credentials
+   → Install a certificate → **CA certificate** → pick the file. Then
+   `http://pgorelease.nianticlabs.com/` (tick under step 2 = the `-dns-server`
+   flag took) and `https://pgorelease.nianticlabs.com/check` (green tick).
+6. **Location:** the emulator's **⋯ Extended controls → Location** sets the GPS
+   (type coordinates, or import a GPX/KML route and play it). No mock-location
+   app needed.
+7. Open the game → Pokémon Trainer Club → any name and password.
+
+If the game closes on launch inside the emulator while the same APK runs on a
+phone, that is the ARM-translation limit the authors hit; nothing on the server
+side changes it.
+
 ## USB instead of Wi-Fi
 
 If you can't change the Wi-Fi DNS (school or work network, or a PC without
