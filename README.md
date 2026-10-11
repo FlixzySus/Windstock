@@ -92,8 +92,11 @@ Welcome back to the wilderness of 2016—free from the boardrooms, free from the
 
 ## 📱 Platforms
 
-- 🍎 **iPhone (0.29 and 0.35):** works with the stock client — no patching — on the same Wi-Fi or
-  over Tailscale. Full walkthrough: [`src/server/IOS_SETUP.md`](src/server/IOS_SETUP.md).
+- 🍎 **iPhone (1.0.x = 0.29):** works with the stock client — no patching — on the same Wi-Fi or
+  over Tailscale. This is the iOS build the protocol was verified against (live client log). The
+  **1.5.0** (= 0.35) iOS build has **not** been seen working: on an iPhone 7 / iOS 15.8.5 it crashes
+  during startup (`load_images` → `strcmp`, a 2016-vs-iOS 14+ Objective-C runtime clash) before it
+  ever contacts a server. Full walkthrough: [`src/server/IOS_SETUP.md`](src/server/IOS_SETUP.md).
 - 🤖 **Android (0.29):** one command patches your own APK for Android 7+ (`src/tools/patch_apk.py`:
   plugin path, login hostname, repackage, sign — Python only); no root, user-installed CA. Full
   walkthrough: [`src/server/ANDROID_SETUP.md`](src/server/ANDROID_SETUP.md).

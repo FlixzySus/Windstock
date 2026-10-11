@@ -1,7 +1,11 @@
 # Playing on iPhone
 
 Windstock talks to the **2016** iOS Pokémon GO client: app version **1.0.x**
-(= Android 0.29) or **1.5.0** (= Android 0.35). The iPhone needs **no jailbreak
+(= Android 0.29) is the one to use; it is the build the server's protocol work was
+verified against. **1.5.0** (= Android 0.35) is not known to run on a current
+iOS: on an iPhone 7 with iOS 15.8.5 it crashes during startup, before any network
+traffic (see Troubleshooting). Whether 1.0.x runs on iOS 14+ is untested as of
+this writing; it is the cheap experiment to make first. The iPhone needs **no jailbreak
 and no patching**. You give it three things:
 
 1. the old Pokémon GO app,
