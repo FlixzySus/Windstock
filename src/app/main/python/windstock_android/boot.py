@@ -165,9 +165,22 @@ def _serve():
     from windstock.net import server as srv
 
     if not (os.path.exists(srv.CERT) and os.path.exists(srv.KEY)):
-        _log("!! TLS certs missing -- app should have extracted bundled certs "
-             "to " + srv.CERT)
-        return
+        # No certificate is shipped with the app: a CA key that every install
+        # shared would let anyone read the traffic of every phone trusting it.
+        # Each phone makes its own, once, here. gen_certs has no openssl on
+        # Android, so this is its pure-Python path (windstock/tools/certgen.py).
+        _log("[tls] no certificate yet -- generating this phone's own CA and "
+             "server certificate (first run only, takes a moment)")
+        try:
+            from windstock.tools import gen_certs
+            gen_certs.main()
+        except Exception as exc:
+            _log(f"!! could not generate the TLS certificates: {exc}")
+            _log("   make them on a PC instead (py windstock/tools/gen_certs.py) "
+                 "and copy the certs/ folder to " + os.path.dirname(srv.CERT))
+            return
+        _log("[tls] done -- use 'Install certificate' in the app on every "
+             "phone that plays, including this one")
 
     import ssl
     from http.server import ThreadingHTTPServer

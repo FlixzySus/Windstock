@@ -305,6 +305,22 @@ The whole repository root is tracked. `.gitignore` still excludes secrets and co
 the APK/IPA, Niantic's asset bundles and game-master binary, extracted app data, TLS private keys,
 player saves, runtime data and logs, packaged builds, and third-party tools.
 
+## 🔐 Security note
+
+Until October 2026 this repository shipped a TLS root CA **and its private key** inside the
+Android app's assets (`src/app/main/assets/windstock/certs/`). Anyone with that key can read the
+traffic of every phone that trusts that certificate. It is gone from the tree now, and the app
+generates a CA of its own on first run, but **the old key is still in the git history**, so treat
+that CA as compromised:
+
+- If you installed `ca.crt` from the Android app before this change, delete it from the phone
+  (Settings → Security → Encryption & credentials → User credentials) and install the new one the
+  app generates.
+- The server on a PC was never affected: it has always generated its own CA with `gen_certs.py`,
+  and `*.key` / `certs/` are ignored by git. Share `ca.crt` only, never `ca.key`.
+- Purging the key from history (`git filter-repo`) is up to the repository owner; it rewrites every
+  commit, so every clone has to be re-cloned afterwards.
+
 ## ⚖️ Legal / disclaimer
 
 This is an independent, educational reverse-engineering project for **personal, offline** use with

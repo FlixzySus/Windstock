@@ -162,7 +162,7 @@ fun MainScreen() {
 
     val installCa = {
         if (!ServerController.installCa(context)) {
-            toast("Run the server once so the certificate is unpacked")
+            toast("Run the server once so it can generate its certificate")
         }
     }
 

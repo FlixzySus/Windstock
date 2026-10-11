@@ -126,5 +126,10 @@ src/server/assets_ios/
 src/server/assets_plain/
 src/server/photos/
 src/server/certs/
+# The Android app no longer ships certificates at all: each phone generates
+# its own on first run. A shared CA key would let anyone read every player's
+# traffic -- one was committed here once, see README "Security note".
+src/app/main/assets/windstock/certs/
+*.crt
 src/server/data/extra_digest.json
 src/server/data/asset_backups/

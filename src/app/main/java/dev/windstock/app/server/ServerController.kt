@@ -85,7 +85,8 @@ object ServerController {
 
         log("[app] extracting bundled Windstock into ${projectDir.name} ...")
         copyAssets(BUNDLED_DIR, projectDir, overwrite = false)
-        copyAssets("$BUNDLED_DIR/certs", java.io.File(projectDir, "certs"), overwrite = false)
+        // No certs/ in the bundle on purpose: the server generates this
+        // phone's own CA + certificate on its first run (see boot.py).
         marker.writeText(version)
         log("[app] server files ready at ${projectDir.absolutePath}")
     }
@@ -132,8 +133,7 @@ object ServerController {
             }
             tempData.deleteRecursively()
         }
-        java.io.File(projectDir, "certs").mkdirs()
-        copyAssets("$BUNDLED_DIR/certs", java.io.File(projectDir, "certs"), overwrite = false)
+        java.io.File(projectDir, "certs").mkdirs()   // kept: this phone's own CA lives here
         log("[app] project refreshed (${from.name})")
     }
 
