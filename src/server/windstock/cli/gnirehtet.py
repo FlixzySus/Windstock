@@ -34,6 +34,13 @@ def _common_adb_paths():
     paths = []
     local = os.environ.get("LOCALAPPDATA")
     home = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+    # An SDK that is not in the default place: Android Studio records it in
+    # ANDROID_HOME / ANDROID_SDK_ROOT, so look there first.
+    exe = "adb.exe" if os.name == "nt" else "adb"
+    for var in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
+        sdk = os.environ.get(var)
+        if sdk:
+            paths.append(os.path.join(sdk, "platform-tools", exe))
     if local:
         paths.append(os.path.join(local, "Android", "Sdk", "platform-tools",
                                   "adb.exe"))
