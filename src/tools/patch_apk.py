@@ -21,9 +21,16 @@ What it does, in order (each step is its own script in this folder):
                            encrypted-DNS mode tends to win the race for pokemon.com,
                            which shows up as "unable to authenticate" with nothing
                            in the server log). Skip with --keep-sso-host.
-  3. repackage_metadata.py the APK is rebuilt with the patched file, everything
+  3. targetSdkVersion      Android lets an app trust USER-installed CA
+                           certificates only while it targets API 23 or lower.
+                           0.29 does; 0.35 targets 24+, so its game traffic
+                           rejects the server's certificate ("certificate
+                           unknown" in the server log) although Chrome accepts
+                           it. The manifest's targetSdkVersion is set back to 23.
+                           Skip with --keep-target-sdk.
+  4. rebuild               the APK is rebuilt with the patched files, everything
                            else byte for byte; the old signature is dropped.
-  4. apksign.py            signed with APK Signature Scheme v2 (Android 7+). The
+  5. apksign.py            signed with APK Signature Scheme v2 (Android 7+). The
                            key is made on first use and kept in src/server/data/
                            apk_sign/, so a later re-patch installs as an update.
 
@@ -45,6 +52,80 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 META_ENTRY = "assets/bin/Data/Managed/Metadata/global-metadata.dat"
+MANIFEST_ENTRY = "AndroidManifest.xml"
+TARGET_SDK_FOR_USER_CA = 23
+
+
+# ---------------------------------------------------- binary AndroidManifest --
+def _axml_strings(m):
+    """The string pool of a binary XML (AXML) file, as a list; [] if it isn't one."""
+    if len(m) < 8 or struct.unpack_from("<H", m, 0)[0] != 0x0003:
+        return []
+    pos = 8
+    while pos + 8 <= len(m):
+        ctype, hsize, csize = struct.unpack_from("<HHI", m, pos)
+        if ctype == 0x0001:                                   # RES_STRING_POOL_TYPE
+            n, _styles, flags, strings_start = struct.unpack_from("<IIII", m, pos + 8)
+            offsets = struct.unpack_from(f"<{n}I", m, pos + hsize)   # right after the header
+            base, out = pos + strings_start, []
+            for off in offsets:
+                q = base + off
+                if flags & 0x100:                             # UTF-8 pool
+                    def _len8(q):
+                        v = m[q]; q += 1
+                        if v & 0x80:
+                            v = ((v & 0x7F) << 8) | m[q]; q += 1
+                        return v, q
+                    _chars, q = _len8(q)
+                    nbytes, q = _len8(q)
+                    out.append(m[q:q + nbytes].decode("utf-8", "replace"))
+                else:                                         # UTF-16LE pool
+                    ln, = struct.unpack_from("<H", m, q); q += 2
+                    if ln & 0x8000:
+                        lo, = struct.unpack_from("<H", m, q); q += 2
+                        ln = ((ln & 0x7FFF) << 16) | lo
+                    out.append(m[q:q + 2 * ln].decode("utf-16-le", "replace"))
+            return out
+        if csize == 0:
+            break
+        pos += csize
+    return []
+
+
+def _target_sdk(m):
+    """-> (value, file offset of its data word) of android:targetSdkVersion in a
+    binary manifest, or (None, None). An AXML attribute is 20 bytes: ns, name,
+    rawValue, then a typed value {size=8, res0=0, type, data}; targetSdkVersion
+    is an INT_DEC (type 0x10) with no raw string (rawValue 0xFFFFFFFF)."""
+    strings = _axml_strings(m)
+    if "targetSdkVersion" not in strings:
+        return None, None
+    idx = strings.index("targetSdkVersion")
+    for pos in range(0, len(m) - 20, 4):
+        _ns, name, raw, size, res0, typ, data = struct.unpack_from("<IIIHBBI", m, pos)
+        if name == idx and raw == 0xFFFFFFFF and size == 8 and res0 == 0 and typ == 0x10:
+            return data, pos + 16
+    return None, None
+
+
+def _repackage(src_apk, out_apk, replacements):
+    """Rebuild the APK with some entries replaced (same logic as
+    repackage_metadata.py, for any number of entries): every other entry is
+    copied verbatim with its compression, and the old signature is dropped."""
+    skip_sig = (".SF", ".RSA", ".DSA", ".EC")
+    with zipfile.ZipFile(src_apk, "r") as zin, zipfile.ZipFile(out_apk, "w") as zout:
+        for item in zin.infolist():
+            name = item.filename
+            up = name.upper()
+            if up.startswith("META-INF/") and (up.endswith(skip_sig) or up.endswith("MANIFEST.MF")):
+                continue
+            data = replacements[name] if name in replacements else zin.read(name)
+            zi = zipfile.ZipInfo(name, date_time=item.date_time)
+            zi.compress_type = item.compress_type
+            zi.external_attr = item.external_attr
+            zi.internal_attr = item.internal_attr
+            zi.create_system = item.create_system
+            zout.writestr(zi, data)
 
 
 def _detect_client(z):
@@ -104,6 +185,9 @@ def main():
                     help="which build this is, if it can't be read from the manifest")
     ap.add_argument("--keep-sso-host", action="store_true",
                     help="leave the PTC login URLs on sso.pokemon.com")
+    ap.add_argument("--keep-target-sdk", action="store_true",
+                    help="leave targetSdkVersion alone (the game then trusts no "
+                         "user-installed CA on Android 7+ if it targets 24+)")
     ap.add_argument("--keys", default=None, help="folder for the signing key")
     a = ap.parse_args()
 
@@ -114,6 +198,7 @@ def main():
     try:
         with zipfile.ZipFile(src) as z:
             meta = z.read(META_ENTRY)
+            manifest = z.read(MANIFEST_ENTRY)
             client = a.client or _detect_client(z)
     except (zipfile.BadZipFile, KeyError):
         raise SystemExit(f"!! {os.path.basename(src)} is not a Pokemon GO APK "
@@ -162,9 +247,27 @@ def main():
         else:
             print("2. PTC login URLs -> pgorelease.nianticlabs.com (patch_sso_host.py)")
             _run("patch_sso_host.py", m1, m2)
-        print("3. rebuilding the APK (repackage_metadata.py)")
-        _run("repackage_metadata.py", src, m2, unsigned)
-        print("4. signing (apksign.py, scheme v2)")
+        replacements = {}
+        with open(m2, "rb") as fh:
+            replacements[META_ENTRY] = fh.read()
+        sdk, off = _target_sdk(manifest)
+        if sdk is None:
+            print("3. targetSdkVersion: not found in the manifest -- left as is")
+        elif a.keep_target_sdk:
+            print(f"3. targetSdkVersion {sdk} left as is (--keep-target-sdk)")
+        elif sdk <= TARGET_SDK_FOR_USER_CA:
+            print(f"3. targetSdkVersion {sdk}: user-installed CA certificates are "
+                  "already trusted -- nothing to do")
+        else:
+            fixed = bytearray(manifest)
+            struct.pack_into("<I", fixed, off, TARGET_SDK_FOR_USER_CA)
+            replacements[MANIFEST_ENTRY] = bytes(fixed)
+            print(f"3. targetSdkVersion {sdk} -> {TARGET_SDK_FOR_USER_CA}, so the game "
+                  "trusts the user-installed CA certificate (Android ignores user "
+                  "CAs for apps targeting 24+)")
+        print("4. rebuilding the APK")
+        _repackage(src, unsigned, replacements)
+        print("5. signing (apksign.py, scheme v2)")
         sys.path.insert(0, HERE)
         import apksign
         apksign.sign(unsigned, out, a.keys or apksign.DEFAULT_KEYS)

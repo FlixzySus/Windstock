@@ -60,8 +60,14 @@ signature. Four things happen, nothing else changes:
    every modern CA), so its login goes through the server's port-80 door and is
    forwarded to the game server on the same machine; the game traffic itself stays
    HTTPS. `--keep-sso-host` skips this step (0.29 only; 0.35 can't log in without it).
-3. **Repackage** byte for byte, dropping the old signature.
-4. **Sign** with APK Signature Scheme v2, using a key made on first run and kept in
+3. **Trust the user-installed certificate.** Android lets an app trust
+   user-installed CA certificates only while it targets API 23 or lower. 0.29
+   does; 0.35 targets 24+, so its game traffic rejected the server's certificate
+   even though Chrome accepted it (`certificate unknown` handshakes in the server
+   log right after login). Its `targetSdkVersion` is set back to 23. `--keep-target-sdk`
+   skips this.
+4. **Repackage** byte for byte, dropping the old signature.
+5. **Sign** with APK Signature Scheme v2, using a key made on first run and kept in
    `src/server/data/apk_sign/`. Keep that folder: an APK signed with a different key
    can't update one that's installed.
 
@@ -186,6 +192,7 @@ Node.js and Java) and install that one; it re-signs the APK itself.
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Uninstall the official Pokémon GO first. |
 | *Unable to authenticate*, nothing in the server window | DNS isn't reaching the server: DNS 2 not empty, Private DNS on, or the wrong IP. Re-do step 4 and the two checks in step 5. |
 | *Unable to authenticate*, the server window shows the login | A different password from that trainer's first login. The Dev Panel's Manager page can reset it. |
+| Login shows in the server window, then repeated `[tls] handshake FAILED: … certificate unknown` | The game doesn't trust the user-installed CA (it targets API 24+). Re-run `patch_apk.py` on the **original** APK with the current tool: step 3 sets `targetSdkVersion` to 23. Older patched files predate that step. |
 | Certificate shows as installed but `/check` warns | It was installed as a VPN/app certificate. Remove it and install as **CA certificate**. |
 | Spawns appear but the map jumps around | Location mode → GPS only; or use a mock-location app (step 6). |
 | Pokémon are flat 2D sprites | Normal without the 2016 asset bundles; everything still works. See the README's *3D models* note. |
