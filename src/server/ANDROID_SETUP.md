@@ -1,12 +1,12 @@
 # Playing on Android
 
-Windstock talks to **Pokémon GO 0.29.0** (July 2016). On Android that APK
-needs one small patch to run on Android 7 or newer, and a certificate so the
-phone trusts the server. No root. This page is the whole route, start to end.
+Windstock talks to **Pokémon GO 0.29.0** (July 2016) and **0.35.0** (September
+2016). On Android the APK needs a small patch to run on Android 7 or newer, and
+a certificate so the phone trusts the server. No root. This page is the whole
+route, start to end; the same command handles both builds.
 
-> **You need your own copy of the 0.29.0 APK.** It is Niantic's copyrighted
-> code and is not in this repository. Patch only your own copy and keep it to
-> yourself.
+> **You need your own copy of the APK.** It is Niantic's copyrighted code and
+> is not in this repository. Patch only your own copy and keep it to yourself.
 
 | Your phone | What to install |
 |---|---|
@@ -22,7 +22,7 @@ phone trusts the server. No root. This page is the whole route, start to end.
 |---|---|
 | A Windows / macOS / Linux computer | with **Python 3.8+** |
 | An Android phone on the **same Wi-Fi** as the computer | or a USB cable: see [USB instead of Wi-Fi](#usb-instead-of-wi-fi) |
-| Your own `pokemon-go-0.29.0.apk` | package `com.nianticlabs.pokemongo`, the ARM (`armeabi-v7a`) build |
+| Your own `pokemon-go-0.29.0.apk` or `0.35.0` | package `com.nianticlabs.pokemongo`, the ARM (`armeabi-v7a`) build |
 
 ## 1. Get the server running
 
@@ -43,17 +43,22 @@ py src\tools\patch_apk.py C:\where\it\is\pokemon-go-0.29.0.apk       # Windows
 python3 src/tools/patch_apk.py ~/pokemon-go-0.29.0.apk               # macOS / Linux
 ```
 
-It writes `pokemon-go-0.29.0-windstock.apk` next to the input and verifies its
+It reads which build it is from the manifest (`--client 0.29` / `--client 0.35`
+if it can't), writes `…-windstock.apk` next to the input and verifies its
 signature. Four things happen, nothing else changes:
 
 1. **Plugin path.** Android 7+ refuses `System.load("libNianticLabsPlugin.so")`
    without an absolute path, which is why the stock APK dies on launch there. One
    string inside the game's metadata becomes `/data/data/com.nianticlabs.pokemongo/lib/…`.
-2. **Login hostname.** The PTC login URLs move from `sso.pokemon.com` to
+2. **Login URLs.** The PTC login URLs move from `sso.pokemon.com` to
    `pgorelease.nianticlabs.com`, the hostname that reliably resolves to this server
    (a phone's second resolver or encrypted DNS likes to win the race for
    `pokemon.com`, which looks like *unable to authenticate* with nothing in the
-   server log). `--keep-sso-host` skips this.
+   server log). **0.35 only:** they also become plain `http://`. That build's login
+   code trusts no certificate anyone can serve it (its 2016 root store predates
+   every modern CA), so its login goes through the server's port-80 door and is
+   forwarded to the game server on the same machine; the game traffic itself stays
+   HTTPS. `--keep-sso-host` skips this step (0.29 only; 0.35 can't log in without it).
 3. **Repackage** byte for byte, dropping the old signature.
 4. **Sign** with APK Signature Scheme v2, using a key made on first run and kept in
    `src/server/data/apk_sign/`. Keep that folder: an APK signed with a different key
@@ -117,13 +122,14 @@ admin rights), the phone can be reverse-tethered through the USB cable with
 `py run.py --gnirehtet`: no DNS change on the phone, no Administrator on the PC.
 Steps 2, 3 and 5 above still apply. Walkthrough: [`GNIREHTET.md`](GNIREHTET.md).
 
-## Pokémon GO 0.35 on Android
+## 0.29 or 0.35?
 
-Also supported, but it is the harder route: 0.35 pins certificates and its login
-code trusts no certificate we can serve, so the APK goes through the
-`src/patcher/patcher.py` GUI (needs Node.js and Java) and its login crosses the
-plain-HTTP door on port 80. Start with 0.29; it is the build this server was
-written against.
+Both work with the same steps. 0.29 is the build the server was written against
+and the one every feature was checked on. 0.35 is what the Android shiny-model
+work (`README-unity-modding-android.md`) was built for. If 0.35 reaches the map
+but the game then can't connect after login, run the patched APK through
+`src/patcher/patcher.py` as well (apk-mitm: certificate-pinning removal, needs
+Node.js and Java) and install that one; it re-signs the APK itself.
 
 ## Troubleshooting
 

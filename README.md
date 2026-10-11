@@ -97,7 +97,8 @@ Welcome back to the wilderness of 2016—free from the boardrooms, free from the
 - 🤖 **Android (0.29):** one command patches your own APK for Android 7+ (`src/tools/patch_apk.py`:
   plugin path, login hostname, repackage, sign — Python only); no root, user-installed CA. Full
   walkthrough: [`src/server/ANDROID_SETUP.md`](src/server/ANDROID_SETUP.md).
-- 🤖 **Android (0.35):** also supported, through an APK patcher
+- 🤖 **Android (0.35):** the same `patch_apk.py` command; it detects the build and moves the login onto
+  the plain-HTTP door on port 80 (`sso_bridge.py`), which is what 0.35's login code needs.
 
 Step-by-step device guides live in `src/server/IOS_SETUP.md`, `src/server/ANDROID_SETUP.md`,
 `src/server/DEVICE_SETUP.md`, `src/server/RUN.md`,

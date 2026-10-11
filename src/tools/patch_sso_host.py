@@ -19,7 +19,12 @@ repoint the literal's (length, dataIndex). il2cpp doesn't bounds-check that
 index and loads the whole file, so the new bytes can live past the declared
 section and be longer than the original.
 
-    py patch_sso_host.py <in.dat> <out.dat> [new-host]
+    py patch_sso_host.py <in.dat> <out.dat> [new-host] [scheme]
+
+`scheme` (http|https) also rewrites the URL's scheme. The 0.35 client needs
+http: its Mono login code trusts no certificate we can serve (see
+windstock/net/sso_bridge.py), so its login goes over the plain-HTTP door on
+port 80 instead. Left out, the scheme is untouched (0.29 stays on https).
 """
 import struct
 import sys
@@ -27,6 +32,8 @@ import sys
 SRC = sys.argv[1]
 DST = sys.argv[2]
 NEW_HOST = (sys.argv[3] if len(sys.argv) > 3 else "pgorelease.nianticlabs.com").encode()
+SCHEME = sys.argv[4].lower() if len(sys.argv) > 4 else None
+assert SCHEME in (None, "http", "https"), f"scheme must be http or https, not {SCHEME!r}"
 OLD_HOST = b"sso.pokemon.com"
 
 d = bytearray(open(SRC, "rb").read())
@@ -52,6 +59,8 @@ for i in range(count):
         print(f"  [skip] not a URL: {s[:60]!r}")
         continue
     new = s.replace(OLD_HOST, NEW_HOST)
+    if SCHEME:
+        new = SCHEME.encode() + b"://" + new.split(b"://", 1)[1]
     new_di = len(d) - sld_off              # append at EOF, index past the section
     d += new
     struct.pack_into("<Ii", d, str_lit_off + i * 8, len(new), new_di)
